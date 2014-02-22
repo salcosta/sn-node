@@ -7,7 +7,7 @@
     "glide",
     "glide api"
   ],
-  "version": "0.0.1",
+  "version": "0.0.3",
   "author": {
     "name": "Sal Costa",
     "email": "costas0811@hotmail.com"
@@ -20,9 +20,9 @@
     "url": "https://github.com/salcosta/sn-node/issues"
   },
   "engines": [
-    "node >= 0.8.0"
+    "node >= 0.10.26"
   ],
-  
+
   "main": "sn-node.js",
   "dependencies": {
     "request": "2.27.x",
