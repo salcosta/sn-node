@@ -1,26 +1,37 @@
 var parseString = require('xml2js').parseString;
 var _ = require('underscore');
 var fs = require('fs');
-
-var IDLE = 0,
-	ACTIVE = 1;
+var async = require('async');
 
 var HEADERS = {
 	"Connection": "keep-alive",
-	"Cache-Control": "max-age=0",
+	"Cache-Control" : "max-age=0",
+	"Accept" : "*/*",
 	"User-Agent": "ServiceNow Node Client",
 	"Content-Type": "application/x-www-form-urlencoded",
 	"Accept-Language": "en-US,en;q=0.8"
 };
 
+var READY = 0,
+	LOGGED_OUT = -1,
+	LOGGING_IN = -0,
+	INVALID_CREDENTIALS = -2;
+
 function ServiceNow(instance, user, pass){
 	var self = this;
 	self.request = require("request");
+
 	self.instance = "https://" + instance + '.service-now.com/';
 	self.user = user;
 	self.pass = pass;
-	self.status = IDLE;
-	self.request_stack = [];
+	self.status = LOGGED_OUT;
+
+	self.request_queue = async.queue( function(task, callback){
+		console.log("Making Request to: " + task.data.options.uri )
+		self.executeRequest(task.data, callback);
+	}, 1 );
+
+	self.token = "";
 
 	self.auth =  { 
 		"user" : user,
@@ -34,30 +45,58 @@ function ServiceNow(instance, user, pass){
 		jar : true
 	};
 
-	self.login = function(cb){
+	self.login = function(){
 		var data =  { 
 						"user_name" : self.user,
 						"user_password" : self.pass,
+						"ni.nolog.user_password" :"true",
+						"ni.noecho.user_name": "true",
+						"ni.noecho.user_password" : "true",
+						"remember_me" : "true",
+						"screensize":"1920x1080",
 						"sys_action" : "sysverb_login",
 						"not_important" : ""
 					};
 
-
-		self.post( "login.do" , data, function(result){
-			self.getCK(result);
-			cb();
+		self.add_request({
+			fn : self.request.post,
+			cb : function(){},
+			file : "",
+			options : self.get_options({ "uri" : self.instance + "login.do", "form" : data })
 		});
+
 
 	};
 
-	self.getCK = function( result ){
+	self.get_options = function( custom_options ){
+		var new_options = {};
+
+		for( var i in self.req_options ){
+			new_options[i] = self.req_options[i];
+		}
+
+		for( i in custom_options ){
+			new_options[i] = custom_options[i];
+		}
+
+		return new_options
+	}
+
+	self.set_token = function( result ){
 		var ck = result.split("var g_ck = '")[1].split('\'')[0];
-		self.req_options.headers['X-UserToken'] = ck;
+
+		if( ck !== ""){
+			self.token  = ck;
+			self.req_options.headers['X-UserToken'] = self.token;
+		} else {
+			self.status = INVALID_CREDENTIALS;
+		}
 	};
 
 	self.add_request = function(request){
-		self.request_stack.push(request);
-		self.executeRequests();
+		self.request_queue.push({ name: 'request', data : request }, function(err){
+			if(err) console.log("An error occured " + err);
+		});
 	};
 
 	self.get = function( ){
@@ -78,7 +117,7 @@ function ServiceNow(instance, user, pass){
 			fn : self.request.get,
 			cb : cb,
 			file : file,
-			options : _.extend( self.req_options, { "uri" : self.instance + path })
+			options : self.get_options({ "uri" : self.instance + path })
 		});
 
 	};
@@ -103,44 +142,43 @@ function ServiceNow(instance, user, pass){
 		self.add_request({
 			fn : self.request.post,
 			cb : cb,
-			file : "",
-			options : _.extend( self.req_options, { "uri" : self.instance + path, "form" : data })
+			file : file,
+			options : self.get_options({ "uri" : self.instance + path, "form" : data })
 		});
 
+		
 	};
 
-	self.executeRequests = function(){
-		if(self.status == IDLE ){
-			if( self.request_stack.length > 0 ){
-				self.status = ACTIVE;
-
-				var req = self.request_stack.shift();
-				
-				self.executeRequest(req);
-			}
-
-		}
-	};
-
-	self.executeRequest = function( request ){
-		if( request.file !== "" ){
+	self.executeRequest = function( request, callback ){
+		if( self.status == INVALID_CREDENTIALS ){
+			console.log("Cannot Make request")
+			callback();
+		} else if( request.file !== "" ){
 			var r = request.fn(request.options).pipe(fs.createWriteStream(request.file));
 			r.on('close', function(){
-				self.status = IDLE;
 				request.cb();
-				self.executeRequests();				
+				callback();
 			});
 
 		} else {
 			request.fn( request.options , function(error, response, body){
-				self.status = IDLE;
+				self.status = self.check_state(body);
 				request.cb(body);
-				self.executeRequests();
+				callback();
 			});		
 		}
 
 
 	};
+
+	self.check_state = function( body ){
+
+		if( self.token === "" ) self.set_token( body );
+
+		if( body.indexOf("Establishing session") != -1 ) return LOGGING_IN
+		if( body.indexOf("User name or password invalid") != -1 ) return INVALID_CREDENTIALS
+		return READY
+	}
 
 	self.GlideAJAX = function( processor ){
 
@@ -256,6 +294,7 @@ function ServiceNow(instance, user, pass){
 		
 		this.get = function(id, cb) {
 			var me = this;
+
 			this.initialize();
 			this.addQuery('sys_id', id);
 			this.query( function(result){
@@ -408,9 +447,9 @@ function ServiceNow(instance, user, pass){
 			self.post( "xmlhttp.do" , data, function(response){
 					parseString(response, function (err, result) {
 						if( result.xml.hasOwnProperty('item') ){
-							cb(result.xml.item[0]);
+							cb(result.xml.item[0]._);
 						} else {
-							cb(true);
+							cb(result.xml.$);
 						}
 						
 					});
