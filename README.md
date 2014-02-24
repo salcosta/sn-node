@@ -13,7 +13,7 @@ For example if you go to https://sniscool.service-now.com, then your instance na
 ```javascript
 var ServiceNow = require("sn-node");
 var my_instance = new ServiceNow("instance name", "user name" ,"password");
-my_instanceinstance.login();
+my_instance.login();
 ```
 
 ## Basic Request
