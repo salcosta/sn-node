@@ -6,7 +6,7 @@ sn-node is a ServiceNow client that extends the GlideAPI to Node as well as prov
 
 ## Logging In
 
-To log in simply include sn-node and create an instance to your...err...intance.  An instance of your instance.
+To log in simply include sn-node and create an instance to your...err...instance.  An instance of your instance.
 It is not necessary to put the whole instance name, just the prefix will work.  
 For example if you go to https://sniscool.service-now.com, then your instance name is 'sniscool'
 
