@@ -27,7 +27,8 @@
   "dependencies": {
     "request": "2.27.x",
     "xml2js": "0.4.x",
-    "async": "0.2.x"
+    "async": "0.2.x",
+    "underscore": "1.8.x"
   },
   "readmeFilename": "README.md",
   "_id": "sn-node@0.0.4",
