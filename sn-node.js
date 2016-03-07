@@ -95,7 +95,11 @@ function ServiceNow(instance, user, pass){
     };
 
     self.set_token = function( result ){
-        var ck = result.split("var g_ck = '")[1].split('\'')[0];
+        if(result.indexOf('var g_ck = \'') === -1) {
+            throw 'Client has not logged in. Use .login() first!';
+        }
+
+        var ck = result.split('var g_ck = \'')[1].split('\'')[0];
 
         if( ck !== ''){
             self.token  = ck;
