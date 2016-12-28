@@ -1,5 +1,5 @@
 var parseString = require('xml2js').parseString;
-var _ = require('underscore');
+var _ = require('lodash');
 var fs = require('fs');
 var async = require('async');
 
